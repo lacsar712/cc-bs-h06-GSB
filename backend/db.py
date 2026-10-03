@@ -77,6 +77,30 @@ def ensure_schema_sync(conn) -> None:
     conn.execute(SCHEMA_SQL)
 
 
+def reconcile_verdicts_sync(conn) -> None:
+    """修复历史遗留行，保证展示不留残骸：
+
+    1. 卡在 processing 的行（旧工人在两次提交之间中断的产物）退回
+       pending，交给工人重新认领；
+    2. 已完成的行按规则用微应变读数重算结论与说明，二者永远成对、
+       与读数一致；不一致才更新，一致的行一个字节都不动。
+    """
+    conn.execute(
+        "UPDATE strain_readings SET status = 'pending' WHERE status = 'processing'"
+    )
+    rows = conn.execute(
+        "SELECT id, microstrain, verdict, reason FROM strain_readings "
+        "WHERE status = 'done'"
+    ).fetchall()
+    for row in rows:
+        verdict, reason = judge_microstrain(float(row["microstrain"]))
+        if row["verdict"] != verdict or row["reason"] != reason:
+            conn.execute(
+                "UPDATE strain_readings SET verdict = %s, reason = %s WHERE id = %s",
+                (verdict, reason, row["id"]),
+            )
+
+
 def seed_if_empty_sync(conn) -> None:
     row = conn.execute("SELECT COUNT(*) AS n FROM strain_readings").fetchone()
     if row["n"] > 0:

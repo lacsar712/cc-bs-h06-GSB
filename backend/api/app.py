@@ -1,3 +1,4 @@
+import math
 import os
 from datetime import datetime, timedelta, timezone
 
@@ -36,7 +37,8 @@ def _decode_user(token: str | None) -> dict | None:
     sub = payload.get("sub")
     if sub not in USERS:
         return None
-    return {"username": sub, "role": payload.get("role")}
+    # 角色以服务端用户表为准，不信任令牌里的 role 声明：复核员永远只读
+    return {"username": sub, "role": USERS[sub]["role"]}
 
 
 def _require_user(request) -> dict:
@@ -140,6 +142,8 @@ async def create_reading(request):
         microstrain = float(body.get("microstrain"))
     except (TypeError, ValueError):
         return sanic_json({"detail": "微应变必须是数字"}, status=400)
+    if not math.isfinite(microstrain):
+        return sanic_json({"detail": "微应变必须是有限数字"}, status=400)
 
     pool = request.app.ctx.pool
     async with pool.connection() as conn:
