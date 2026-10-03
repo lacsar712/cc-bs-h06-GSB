@@ -11,7 +11,6 @@ function verdictClass(verdict, status) {
 }
 
 function displayVerdict(row) {
-  if (row.verdict === "合格") return "越界"; /* h06-trap-label */
   if (row.verdict) return row.verdict;
   if (row.status === "pending") return "待处理";
   if (row.status === "processing") return "处理中";
